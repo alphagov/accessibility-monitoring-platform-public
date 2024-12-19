@@ -89,7 +89,6 @@ from .forms import (
 from .models import (
     ONE_WEEK_IN_DAYS,
     Case,
-    CaseNoteHistory,
     Contact,
     EqualityBodyCorrespondence,
     ZendeskTicket,
