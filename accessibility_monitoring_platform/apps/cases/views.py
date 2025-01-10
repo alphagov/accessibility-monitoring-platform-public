@@ -23,7 +23,7 @@ from ..comments.models import Comment
 from ..comments.utils import add_comment_notification
 from ..common.email_template_utils import get_email_template_context
 from ..common.models import Boolean, EmailTemplate
-from ..common.sitemap import Sitemap
+from ..common.sitemap import Sitemap, get_platform_page_by_url_name
 from ..common.utils import (
     amp_format_date,
     check_dict_for_truthy_values,
@@ -354,6 +354,20 @@ class CaseMetadataUpdateView(CaseUpdateView):
     """
 
     form_class: type[CaseMetadataUpdateForm] = CaseMetadataUpdateForm
+
+    def get_context_data(self, **kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get context data for template rendering"""
+        context: dict[str, Any] = super().get_context_data(**kwargs)
+        case: Case = self.object
+        next_page_url_name: str = (
+            "audits:edit-audit-metadata"
+            if case.audit is not None
+            else "cases:edit-test-results"
+        )
+        context["conditional_next_page"] = get_platform_page_by_url_name(
+            url_name=next_page_url_name, case=case
+        )
+        return context
 
     def form_valid(self, form: ModelForm):
         """Process contents of valid form"""

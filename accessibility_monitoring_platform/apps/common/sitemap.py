@@ -1,5 +1,7 @@
 """Module with all page names to be placed in context"""
 
+from __future__ import annotations
+
 import copy
 import logging
 from dataclasses import dataclass
@@ -63,9 +65,11 @@ class PlatformPage:
     complete_flag_name: str | None = None
     show_flag_name: str | None = None
     visible_only_when_current: bool = False
-    subpages: list["PlatformPage"] | None = None
+    subpages: list[PlatformPage] | None = None
     case_details_form_class: type[forms.ModelForm] | None = None
     case_details_template_name: str = ""
+    next_page_url_name: str | None = None
+    next_page: PlatformPage | None = None
 
     def __init__(
         self,
@@ -82,6 +86,7 @@ class PlatformPage:
         subpages: list["PlatformPage"] | None = None,
         case_details_form_class: type[forms.ModelForm] | None = None,
         case_details_template_name: str = "",
+        next_page_url_name: str | None = None,
     ):
         self.name = name
         self.platform_page_group_name = platform_page_group_name
@@ -99,6 +104,7 @@ class PlatformPage:
         self.subpages = subpages
         self.case_details_form_class = case_details_form_class
         self.case_details_template_name = case_details_template_name
+        self.next_page_url_name = next_page_url_name
 
     def __repr__(self):
         repr: str = f'PlatformPage(name="{self.name}", url_name="{self.url_name}"'
@@ -211,15 +217,18 @@ class CasePlatformPage(PlatformPage):
         if self.url_kwarg_key is None:
             self.url_kwarg_key: str = "pk"
 
-    def populate_from_case(self, case: Case):
+    def set_object_from_case(self, case: Case):
         self.object = case
+
+    def populate_from_case(self, case: Case):
+        self.set_object_from_case(case=case)
         super().populate_from_case(case=case)
 
 
 class CaseContactsPlatformPage(CasePlatformPage):
     def populate_from_case(self, case: Case):
         if case is not None:
-            self.object = case
+            self.set_object_from_case(case=case)
             self.subpages = get_subpages_by_url_name(url_name=self.url_name)
             if self.subpages is not None:
                 subpage_instances: list[PlatformPage] = []
@@ -242,7 +251,7 @@ class CaseContactsPlatformPage(CasePlatformPage):
 class CaseCommentsPlatformPage(CasePlatformPage):
     def populate_from_case(self, case: Case):
         if case is not None:
-            self.object = case
+            self.set_object_from_case(case=case)
             self.subpages = get_subpages_by_url_name(url_name=self.url_name)
             if self.subpages is not None:
                 subpage_instances: list[PlatformPage] = []
@@ -264,15 +273,18 @@ class AuditPlatformPage(PlatformPage):
         if self.url_kwarg_key is None:
             self.url_kwarg_key: str = "pk"
 
-    def populate_from_case(self, case: Case):
+    def set_object_from_case(self, case: Case):
         self.object = case.audit
+
+    def populate_from_case(self, case: Case):
+        self.set_object_from_case(case=case)
         super().populate_from_case(case=case)
 
 
 class AuditPagesPlatformPage(AuditPlatformPage):
     def populate_from_case(self, case: Case):
         if case.audit is not None:
-            self.object = case.audit
+            self.set_object_from_case(case=case)
             self.subpages = get_subpages_by_url_name(url_name=self.url_name)
             if self.subpages is not None:
                 subpage_instances: list[PlatformPage] = []
@@ -294,8 +306,11 @@ class ReportPlatformPage(PlatformPage):
         if self.url_kwarg_key is None:
             self.url_kwarg_key: str = "pk"
 
-    def populate_from_case(self, case: Case):
+    def set_object_from_case(self, case: Case):
         self.object = case.report
+
+    def populate_from_case(self, case: Case):
+        self.set_object_from_case(case=case)
         super().populate_from_case(case=case)
 
 
@@ -326,7 +341,7 @@ class CaseEmailTemplatePreviewPlatformPage(PlatformPage):
 class AuditRetestPagesPlatformPage(AuditPlatformPage):
     def populate_from_case(self, case: Case):
         if case.audit is not None:
-            self.object = case.audit
+            self.set_object_from_case(case=case)
             self.subpages = get_subpages_by_url_name(url_name=self.url_name)
             if self.subpages is not None:
                 subpage_instances: list[PlatformPage] = []
@@ -356,7 +371,7 @@ class EqualityBodyRetestPlatformPage(PlatformPage):
 
 class RetestOverviewPlatformPage(CasePlatformPage):
     def populate_from_case(self, case: Case):
-        self.object = case
+        self.set_object_from_case(case=case)
         self.subpages = get_subpages_by_url_name(url_name=self.url_name)
         if self.subpages is not None:
             subpage_instances: list[PlatformPage] = []
@@ -492,6 +507,7 @@ SITE_MAP: list[PlatformPageGroup] = [
             CasePlatformPage(
                 name="Testing details",
                 url_name="cases:edit-test-results",
+                next_page_url_name="audits:edit-audit-metadata",
             ),
         ],
     ),
@@ -505,6 +521,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="audit_metadata_complete_date",
                 case_details_form_class=AuditMetadataUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="audits:edit-audit-pages",
             ),
             AuditPagesPlatformPage(
                 name="Add or remove pages",
@@ -527,11 +544,13 @@ SITE_MAP: list[PlatformPageGroup] = [
                 url_name="audits:edit-website-decision",
                 complete_flag_name="audit_website_decision_complete_date",
                 case_details_template_name="cases/details/details_initial_website_compliance.html",
+                next_page_url_name="audits:edit-audit-wcag-summary",
             ),
             AuditPlatformPage(
                 name="Test summary",
                 url_name="audits:edit-audit-wcag-summary",
                 complete_flag_name="audit_wcag_summary_complete_date",
+                next_page_url_name="audits:edit-statement-pages",
             ),
         ],
     ),
@@ -544,6 +563,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 url_name="audits:edit-statement-pages",
                 complete_flag_name="audit_statement_pages_complete_date",
                 case_details_template_name="cases/details/details_statement_links.html",
+                next_page_url_name="audits:edit-statement-overview",
             ),
             AuditPlatformPage(
                 name="Statement overview",
@@ -556,6 +576,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_website_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_website.html",
+                        next_page_url_name="audits:edit-statement-compliance",
                     ),
                     AuditPlatformPage(
                         name="Compliance status",
@@ -563,6 +584,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_compliance_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_compliance.html",
+                        next_page_url_name="audits:edit-statement-non-accessible",
                     ),
                     AuditPlatformPage(
                         name="Non-accessible content",
@@ -570,6 +592,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_non_accessible_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_non_accessible.html",
+                        next_page_url_name="audits:edit-statement-preparation",
                     ),
                     AuditPlatformPage(
                         name="Statement preparation",
@@ -577,6 +600,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_preparation_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_preparation.html",
+                        next_page_url_name="audits:edit-statement-feedback",
                     ),
                     AuditPlatformPage(
                         name="Feedback and enforcement procedure",
@@ -584,6 +608,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_feedback_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_feedback.html",
+                        next_page_url_name="audits:edit-statement-custom",
                     ),
                     AuditPlatformPage(
                         name="Custom statement issues",
@@ -591,6 +616,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_statement_custom_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_initial_statement_checks_custom.html",
+                        next_page_url_name="audits:edit-initial-disproportionate-burden",
                     ),
                 ],
                 case_details_template_name="cases/details/details_initial_statement_checks_overview.html",
@@ -601,12 +627,14 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="initial_disproportionate_burden_complete_date",
                 case_details_form_class=InitialDisproportionateBurdenUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="audits:edit-statement-decision",
             ),
             AuditPlatformPage(
                 name="Statement compliance",
                 url_name="audits:edit-statement-decision",
                 complete_flag_name="audit_statement_decision_complete_date",
                 case_details_template_name="cases/details/details_initial_statement_compliance.html",
+                next_page_url_name="audits:edit-audit-statement-summary",
             ),
             AuditPlatformPage(
                 name="Test summary",
@@ -635,6 +663,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="reporting_details_complete_date",
                 case_details_form_class=CaseReportReadyForQAUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-qa-auditor",
             ),
             CasePlatformPage(
                 name="QA auditor",
@@ -642,6 +671,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="qa_auditor_complete_date",
                 case_details_form_class=CaseQAAuditorUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-qa-comments",
             ),
             CaseCommentsPlatformPage(
                 name="Comments ({object.qa_comments_count})",
@@ -656,6 +686,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                     ),
                 ],
                 case_details_template_name="cases/details/details_qa_comments.html",
+                next_page_url_name="cases:edit-qa-approval",
             ),
             CasePlatformPage(
                 name="QA approval",
@@ -663,6 +694,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="qa_approval_complete_date",
                 case_details_form_class=CaseQAApprovalUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-publish-report",
             ),
             CasePlatformPage(
                 name="Publish report",
@@ -676,6 +708,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         visible_only_when_current=True,
                     ),
                 ],
+                next_page_url_name="cases:edit-manage-contact-details",
             ),
         ],
     ),
@@ -729,6 +762,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 show_flag_name="enable_correspondence_process",
                 case_details_form_class=CaseRequestContactDetailsUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-one-week-contact-details",
             ),
             CasePlatformPage(
                 name="One-week follow-up",
@@ -737,6 +771,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 show_flag_name="enable_correspondence_process",
                 case_details_form_class=CaseOneWeekContactDetailsUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-four-week-contact-details",
             ),
             CasePlatformPage(
                 name="Four-week follow-up",
@@ -745,6 +780,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 show_flag_name="enable_correspondence_process",
                 case_details_form_class=CaseFourWeekContactDetailsUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-no-psb-response",
             ),
             CasePlatformPage(
                 name="Unresponsive PSB",
@@ -753,6 +789,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 show_flag_name="enable_correspondence_process",
                 case_details_form_class=CaseNoPSBContactUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-report-sent-on",
             ),
         ],
     ),
@@ -766,6 +803,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="report_sent_on_complete_date",
                 case_details_form_class=CaseReportSentOnUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-report-one-week-followup",
             ),
             CasePlatformPage(
                 name="One week follow-up",
@@ -773,6 +811,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="one_week_followup_complete_date",
                 case_details_form_class=CaseReportOneWeekFollowupUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-report-four-week-followup",
             ),
             CasePlatformPage(
                 name="Four week follow-up",
@@ -780,6 +819,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="four_week_followup_complete_date",
                 case_details_form_class=CaseReportFourWeekFollowupUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-report-acknowledged",
             ),
             CasePlatformPage(
                 name="Report acknowledged",
@@ -787,6 +827,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="report_acknowledged_complete_date",
                 case_details_form_class=CaseReportAcknowledgedUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-12-week-update-requested",
             ),
         ],
     ),
@@ -800,6 +841,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="twelve_week_update_requested_complete_date",
                 case_details_form_class=CaseTwelveWeekUpdateRequestedUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-12-week-one-week-followup-final",
             ),
             CasePlatformPage(
                 name="One week follow-up for final update",
@@ -807,6 +849,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="one_week_followup_final_complete_date",
                 case_details_form_class=CaseOneWeekFollowupFinalUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-12-week-update-request-ack",
             ),
             CasePlatformPage(
                 name="12-week update request acknowledged",
@@ -837,6 +880,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="audit_retest_metadata_complete_date",
                 case_details_form_class=AuditRetestMetadataUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="audits:edit-audit-retest-pages",
             ),
             AuditRetestPagesPlatformPage(
                 name="Retest pages",
@@ -858,11 +902,13 @@ SITE_MAP: list[PlatformPageGroup] = [
                 url_name="audits:edit-audit-retest-website-decision",
                 complete_flag_name="audit_retest_website_decision_complete_date",
                 case_details_template_name="cases/details/details_twelve_week_website_compliance.html",
+                next_page_url_name="audits:edit-audit-retest-wcag-summary",
             ),
             AuditPlatformPage(
                 name="Test summary",
                 url_name="audits:edit-audit-retest-wcag-summary",
                 complete_flag_name="audit_retest_wcag_summary_complete_date",
+                next_page_url_name="audits:edit-audit-retest-statement-pages",
             ),
         ],
     ),
@@ -874,6 +920,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 name="Statement links",
                 url_name="audits:edit-audit-retest-statement-pages",
                 complete_flag_name="audit_retest_statement_pages_complete_date",
+                next_page_url_name="audits:edit-retest-statement-overview",
             ),
             AuditPlatformPage(
                 name="Statement overview",
@@ -886,6 +933,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_website_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_website.html",
+                        next_page_url_name="audits:edit-retest-statement-compliance",
                     ),
                     AuditPlatformPage(
                         name="Compliance status",
@@ -893,6 +941,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_compliance_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_compliance.html",
+                        next_page_url_name="audits:edit-retest-statement-non-accessible",
                     ),
                     AuditPlatformPage(
                         name="Non-accessible content",
@@ -900,6 +949,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_non_accessible_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_non_accessible.html",
+                        next_page_url_name="audits:edit-retest-statement-preparation",
                     ),
                     AuditPlatformPage(
                         name="Statement preparation",
@@ -907,6 +957,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_preparation_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_preparation.html",
+                        next_page_url_name="audits:edit-retest-statement-feedback",
                     ),
                     AuditPlatformPage(
                         name="Feedback and enforcement procedure",
@@ -914,6 +965,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_feedback_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_feedback.html",
+                        next_page_url_name="audits:edit-retest-statement-custom",
                     ),
                     AuditPlatformPage(
                         name="Custom issues",
@@ -921,6 +973,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                         complete_flag_name="audit_retest_statement_custom_complete_date",
                         show_flag_name="all_overview_statement_checks_have_passed",
                         case_details_template_name="cases/details/details_twelve_week_statement_checks_custom.html",
+                        next_page_url_name="audits:edit-twelve-week-disproportionate-burden",
                     ),
                 ],
                 case_details_template_name="cases/details/details_twelve_week_statement_checks_overview.html",
@@ -931,17 +984,20 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="twelve_week_disproportionate_burden_complete_date",
                 case_details_form_class=TwelveWeekDisproportionateBurdenUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="audits:edit-audit-retest-statement-decision",
             ),
             AuditPlatformPage(
                 name="Compliance decision",
                 url_name="audits:edit-audit-retest-statement-decision",
                 complete_flag_name="audit_retest_statement_decision_complete_date",
                 case_details_template_name="cases/details/details_twelve_week_statement_compliance.html",
+                next_page_url_name="audits:edit-audit-retest-statement-summary",
             ),
             AuditPlatformPage(
                 name="Test summary",
                 url_name="audits:edit-audit-retest-statement-summary",
                 complete_flag_name="audit_retest_statement_summary_complete_date",
+                next_page_url_name="cases:edit-review-changes",
             ),
         ],
     ),
@@ -955,6 +1011,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="review_changes_complete_date",
                 case_details_form_class=CaseReviewChangesUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-enforcement-recommendation",
             ),
             CasePlatformPage(
                 name="Recommendation",
@@ -962,6 +1019,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="enforcement_recommendation_complete_date",
                 case_details_form_class=CaseEnforcementRecommendationUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-case-close",
             ),
             CasePlatformPage(
                 name="Closing the case",
@@ -969,6 +1027,7 @@ SITE_MAP: list[PlatformPageGroup] = [
                 complete_flag_name="case_close_complete_date",
                 case_details_form_class=CaseCloseUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-statement-enforcement",
             ),
         ],
     ),
@@ -981,12 +1040,14 @@ SITE_MAP: list[PlatformPageGroup] = [
                 url_name="cases:edit-statement-enforcement",
                 case_details_form_class=CaseStatementEnforcementUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:edit-equality-body-metadata",
             ),
             CasePlatformPage(
                 name="Equality body metadata",
                 url_name="cases:edit-equality-body-metadata",
                 case_details_form_class=CaseEqualityBodyMetadataUpdateForm,
                 case_details_template_name="cases/details/details.html",
+                next_page_url_name="cases:list-equality-body-correspondence",
             ),
             CasePlatformPage(
                 name="Equality body correspondence",
@@ -1034,16 +1095,19 @@ SITE_MAP: list[PlatformPageGroup] = [
                                 name="Comparison",
                                 url_name="audits:retest-comparison-update",
                                 complete_flag_name="comparison_complete_date",
+                                next_page_url_name="audits:retest-compliance-update",
                             ),
                             EqualityBodyRetestPlatformPage(
                                 name="Compliance decision",
                                 url_name="audits:retest-compliance-update",
                                 complete_flag_name="compliance_complete_date",
+                                next_page_url_name="audits:edit-equality-body-statement-pages",
                             ),
                             EqualityBodyRetestPlatformPage(
                                 name="Statement links",
                                 url_name="audits:edit-equality-body-statement-pages",
                                 complete_flag_name="statement_pages_complete_date",
+                                next_page_url_name="audits:edit-equality-body-statement-overview",
                             ),
                             EqualityBodyRetestPlatformPage(
                                 name="Statement overview",
@@ -1054,31 +1118,37 @@ SITE_MAP: list[PlatformPageGroup] = [
                                         name="Statement information",
                                         url_name="audits:edit-equality-body-statement-website",
                                         complete_flag_name="statement_website_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-compliance",
                                     ),
                                     EqualityBodyRetestPlatformPage(
                                         name="Compliance status",
                                         url_name="audits:edit-equality-body-statement-compliance",
                                         complete_flag_name="statement_compliance_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-non-accessible",
                                     ),
                                     EqualityBodyRetestPlatformPage(
                                         name="Non-accessible content",
                                         url_name="audits:edit-equality-body-statement-non-accessible",
                                         complete_flag_name="statement_non_accessible_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-preparation",
                                     ),
                                     EqualityBodyRetestPlatformPage(
                                         name="Statement preparation",
                                         url_name="audits:edit-equality-body-statement-preparation",
                                         complete_flag_name="statement_preparation_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-feedback",
                                     ),
                                     EqualityBodyRetestPlatformPage(
                                         name="Feedback and enforcement procedure",
                                         url_name="audits:edit-equality-body-statement-feedback",
                                         complete_flag_name="statement_feedback_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-custom",
                                     ),
                                     EqualityBodyRetestPlatformPage(
                                         name="Custom statement issues",
                                         url_name="audits:edit-equality-body-statement-custom",
                                         complete_flag_name="statement_custom_complete_date",
+                                        next_page_url_name="audits:edit-equality-body-statement-results",
                                     ),
                                 ],
                             ),
@@ -1086,16 +1156,19 @@ SITE_MAP: list[PlatformPageGroup] = [
                                 name="Statement results",
                                 url_name="audits:edit-equality-body-statement-results",
                                 complete_flag_name="statement_results_complete_date",
+                                next_page_url_name="audits:edit-equality-body-disproportionate-burden",
                             ),
                             EqualityBodyRetestPlatformPage(
                                 name="Disproportionate burden",
                                 url_name="audits:edit-equality-body-disproportionate-burden",
                                 complete_flag_name="disproportionate_burden_complete_date",
+                                next_page_url_name="audits:edit-equality-body-statement-decision",
                             ),
                             EqualityBodyRetestPlatformPage(
                                 name="Statement decision",
                                 url_name="audits:edit-equality-body-statement-decision",
                                 complete_flag_name="statement_decision_complete_date",
+                                next_page_url_name="cases:edit-retest-overview",
                             ),
                         ],
                     )
@@ -1356,6 +1429,13 @@ def get_requested_platform_page(request: HttpRequest) -> PlatformPage:
     return platform_page
 
 
+def get_platform_page_by_url_name(url_name: str, case: Case) -> PlatformPage:
+    """Find platform page in sitemap; Set the platform page object and return it"""
+    platform_page: PlatformPage = SITEMAP_BY_URL_NAME[url_name]
+    platform_page.set_object_from_case(case=case)
+    return platform_page
+
+
 def build_sitemap_for_current_page(
     current_platform_page: PlatformPage,
 ) -> list[PlatformPageGroup]:
@@ -1365,6 +1445,10 @@ def build_sitemap_for_current_page(
     page is case-related, otherwise return the entire sitemap.
     """
     case: Case | None = current_platform_page.get_case()
+    if current_platform_page.next_page_url_name is not None:
+        current_platform_page.next_page = get_platform_page_by_url_name(
+            url_name=current_platform_page.next_page_url_name, case=case
+        )
     if case is not None:
         site_map = copy.deepcopy(SITE_MAP)
         case_navigation: list[PlatformPageGroup] = [
@@ -1382,6 +1466,7 @@ def build_sitemap_for_current_page(
 class Sitemap:
     platform_page_groups: list[PlatformPageGroup]
     current_platform_page: PlatformPage
+    next_platform_page: PlatformPage | None
 
     def __init__(self, request: HttpRequest):
         self.current_platform_page = get_requested_platform_page(request=request)

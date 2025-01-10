@@ -1,20 +1,38 @@
-    <input
-        type="submit"
-        value="Save and continue"
-        name="save_continue"
-        class="govuk-button"
-        data-module="govuk-button"
-    />
-    <input
-        type="submit"
-        value="Save"
-        name="save"
-        class="govuk-button govuk-button--secondary"
-        data-module="govuk-button"
-    />
-    <a
-        href="{{ case.get_absolute_url }}"
-        class="govuk-link govuk-link--no-visited-state"
-    >
-        Return to overview
-    </a>
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-full govuk-button-group">
+        <input
+            type="submit"
+            value="Save and continue"
+            name="save_continue"
+            class="govuk-button"
+            data-module="govuk-button"
+        />
+        <input
+            type="submit"
+            value="Save"
+            name="save"
+            class="govuk-button govuk-button--secondary"
+            data-module="govuk-button"
+        />
+        <a
+            href="{{ case.get_absolute_url }}"
+            class="govuk-link govuk-link--no-visited-state"
+        >
+            Return to overview
+        </a>
+    </div>
+    <div class="govuk-grid-column-full govuk-button-group">
+        <p class="govuk-body">
+            Next:
+            {% if conditional_next_page %}
+                <b>{{ conditional_next_page.platform_page_group_name }} |
+                {{ conditional_next_page.get_name }}</b>
+            {% elif sitemap.current_platform_page.next_page %}
+                <b>{{ sitemap.current_platform_page.platform_page_group_name }} |
+                {{ sitemap.current_platform_page.next_page.get_name }}</b>
+            {% else %}
+                Unknown
+            {% endif %}
+        </p>
+    </div>
+</div>
