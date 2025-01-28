@@ -51,7 +51,7 @@ class CheckResultAdmin(admin.ModelAdmin):
         "page__name",
         "page__page_type",
     ]
-    list_display = ["__str__", "audit", "page"]
+    list_display = ["issue_identifier", "__str__", "audit", "page"]
     list_filter = ["check_result_state"]
 
 
@@ -102,7 +102,7 @@ class StatementCheckResultAdmin(admin.ModelAdmin):
         "statement_check__success_criteria",
         "statement_check__report_text",
     ]
-    list_display = ["statement_check", "audit", "is_deleted"]
+    list_display = ["issue_identifier", "statement_check", "audit", "is_deleted"]
     list_filter = ["is_deleted", "check_result_state", "retest_state"]
     fieldsets = (
         (
@@ -160,6 +160,7 @@ class RetestCheckResultAdmin(admin.ModelAdmin):
         "retest_page__page__url",
     ]
     list_display = [
+        "issue_identifier",
         "check_result",
         "retest",
         "retest_page",
@@ -188,7 +189,7 @@ class RetestStatementCheckResultAdmin(admin.ModelAdmin):
         "comment",
     ]
     list_display = [
-        "id",
+        "issue_identifier",
         "retest",
         "type",
         "check_result_state",

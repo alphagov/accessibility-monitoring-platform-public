@@ -133,17 +133,17 @@ def get_all_possible_check_results_for_page(
             ]
             check_result_state: str = check_result.check_result_state
             notes: str = check_result.notes
-            id_within_case: int | None = check_result.id_within_case
+            issue_identifier: str = check_result.issue_identifier
         else:
             check_result_state: str = CheckResult.Result.NOT_TESTED
             notes: str = ""
-            id_within_case: int | None = None
+            issue_identifier: str = ""
         check_results.append(
             {
                 "wcag_definition": wcag_definition,
                 "check_result_state": check_result_state,
                 "notes": notes,
-                "id_within_case": id_within_case,
+                "issue_identifier": issue_identifier,
             }
         )
     return check_results
@@ -296,6 +296,7 @@ def create_checkresults_for_retest(retest: Retest) -> None:
                 for check_result in page.unfixed_check_results:
                     RetestCheckResult.objects.create(
                         retest=retest_0,
+                        id_within_case=check_result.id_within_case,
                         retest_page=retest_page,
                         check_result=check_result,
                         retest_state=check_result.retest_state,
@@ -315,14 +316,20 @@ def create_checkresults_for_retest(retest: Retest) -> None:
         for previous_retest_check_result in previous_retest_page.unfixed_check_results:
             RetestCheckResult.objects.create(
                 retest=retest,
+                id_within_case=previous_retest_check_result.id_within_case,
                 retest_page=retest_page,
                 check_result=previous_retest_check_result.check_result,
             )
 
     today: date = date.today()
+    id_within_case: int = 0
     for statement_check in StatementCheck.objects.on_date(today):
+        id_within_case += 1
         RetestStatementCheckResult.objects.create(
-            retest=retest, statement_check=statement_check, type=statement_check.type
+            retest=retest,
+            statement_check=statement_check,
+            type=statement_check.type,
+            id_within_case=id_within_case,
         )
 
 

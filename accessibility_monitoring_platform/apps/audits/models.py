@@ -6,7 +6,7 @@ from datetime import date
 
 from django.db import models
 from django.db.models import Case as DjangoCase
-from django.db.models import Q, When
+from django.db.models import Max, Q, When
 from django.db.models.query import QuerySet
 from django.urls import reverse
 from django.utils import timezone
@@ -202,7 +202,7 @@ class Audit(VersionModel):
         ordering = ["-id"]
 
     def __str__(self) -> str:
-        return str(f"{self.case}" f" (Test {amp_format_date(self.date_of_test)})")
+        return f"{self.case} (Test {amp_format_date(self.date_of_test)})"
 
     def get_absolute_url(self) -> str:
         return reverse("audits:edit-audit-metadata", kwargs={"pk": self.pk})
@@ -647,7 +647,7 @@ class WcagDefinition(models.Model):
 
     def __str__(self) -> str:
         if self.description:
-            return str(f"{self.name}: {self.description} ({self.get_type_display()})")
+            return f"{self.name}: {self.description} ({self.get_type_display()})"
         return f"{self.name} ({self.get_type_display()})"
 
     def get_absolute_url(self) -> str:
@@ -714,9 +714,7 @@ class CheckResult(models.Model):
         ordering = ["id"]
 
     def __str__(self) -> str:
-        return str(
-            f"{self.page} | {self.wcag_definition} | {self.unique_id_within_case}"
-        )
+        return f"{self.page} | {self.wcag_definition} | {self.issue_identifier}"
 
     def save(self, *args, **kwargs) -> None:
         self.updated = timezone.now()
@@ -734,9 +732,9 @@ class CheckResult(models.Model):
         )
 
     @property
-    def unique_id_within_case(self) -> str:
-        """Unique identifies of check result within case to aid QA audit communication"""
-        return f"#E{self.id_within_case}"
+    def issue_identifier(self) -> str:
+        """Unique identifier to aid communication"""
+        return f"CASE-{self.audit.case.case_number}-A-{self.id_within_case}"
 
 
 class StatementCheck(models.Model):
@@ -772,9 +770,7 @@ class StatementCheck(models.Model):
 
     def __str__(self) -> str:
         if self.success_criteria:
-            return str(
-                f"{self.label}: {self.success_criteria} ({self.get_type_display()})"
-            )
+            return f"{self.label}: {self.success_criteria} ({self.get_type_display()})"
         return f"{self.label} ({self.get_type_display()})"
 
     def get_absolute_url(self) -> str:
@@ -800,6 +796,7 @@ class StatementCheckResult(models.Model):
         NOT_TESTED = "not-tested", "Not tested"
 
     audit = models.ForeignKey(Audit, on_delete=models.PROTECT)
+    id_within_case = models.IntegerField(default=0, blank=True)
     statement_check = models.ForeignKey(
         StatementCheck, on_delete=models.PROTECT, null=True, blank=True
     )
@@ -828,10 +825,12 @@ class StatementCheckResult(models.Model):
 
     def __str__(self) -> str:
         if self.statement_check is None:
-            return str(f"{self.audit} | Custom")
-        return str(f"{self.audit} | {self.statement_check}")
+            return f"{self.audit} | Custom ({self.issue_identifier})"
+        return f"{self.audit} | {self.statement_check} ({self.issue_identifier})"
 
     def save(self, *args, **kwargs) -> None:
+        if not self.id:
+            self.id_within_case = self.audit.statement_check_results.count() + 1
         super().save(*args, **kwargs)
 
     @property
@@ -844,6 +843,11 @@ class StatementCheckResult(models.Model):
         if self.report_comment:
             value_str += f"<br><br>Auditor's comment: {self.report_comment}"
         return mark_safe(value_str)
+
+    @property
+    def issue_identifier(self) -> str:
+        """Unique identifier to aid communication"""
+        return f"CASE-{self.audit.case.case_number}-B-{self.id_within_case}"
 
 
 class Retest(VersionModel):
@@ -906,7 +910,7 @@ class Retest(VersionModel):
     def __str__(self) -> str:
         if self.id_within_case == 0:
             return "12-week retest"
-        return str(f"Retest #{self.id_within_case}")
+        return f"Retest #{self.id_within_case}"
 
     @property
     def is_incomplete(self) -> bool:
@@ -1079,6 +1083,7 @@ class RetestCheckResult(models.Model):
     """
 
     retest = models.ForeignKey(Retest, on_delete=models.PROTECT)
+    id_within_case = models.IntegerField(default=0, blank=True)
     retest_page = models.ForeignKey(RetestPage, on_delete=models.PROTECT)
     check_result = models.ForeignKey(CheckResult, on_delete=models.PROTECT)
     is_deleted = models.BooleanField(default=False)
@@ -1105,7 +1110,7 @@ class RetestCheckResult(models.Model):
         ordering = ["id"]
 
     def __str__(self) -> str:
-        return str(f"{self.retest_page} | {self.check_result}")
+        return f"{self.retest_page} | {self.check_result}"
 
     def save(self, *args, **kwargs) -> None:
         self.updated = timezone.now()
@@ -1141,6 +1146,11 @@ class RetestCheckResult(models.Model):
         """Return all retest results for this check"""
         return RetestCheckResult.objects.filter(check_result=self.check_result)
 
+    @property
+    def issue_identifier(self) -> str:
+        """Unique identifier to aid communication"""
+        return f"CASE-{self.retest.case.case_number}-A-{self.id_within_case}"
+
 
 class RetestStatementCheckResult(models.Model):
     """
@@ -1153,6 +1163,7 @@ class RetestStatementCheckResult(models.Model):
         NOT_TESTED = "not-tested", "Not tested"
 
     retest = models.ForeignKey(Retest, on_delete=models.PROTECT)
+    id_within_case = models.IntegerField(default=0, blank=True)
     statement_check = models.ForeignKey(
         StatementCheck, on_delete=models.PROTECT, null=True, blank=True
     )
@@ -1172,14 +1183,29 @@ class RetestStatementCheckResult(models.Model):
     class Meta:
         ordering = ["statement_check__position", "id"]
 
+    def save(self, *args, **kwargs) -> None:
+        if not self.id and self.id_within_case == 0:
+            self.id_within_case = (
+                RetestStatementCheckResult.objects.filter(
+                    retest__case=self.retest.case
+                ).aggregate(Max("id_within_case", default=0))["id_within_case__max"]
+                + 1
+            )
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:
         if self.statement_check is None:
-            return str(f"{self.retest} | Custom")
-        return str(f"{self.retest} | {self.statement_check}")
+            return f"{self.retest} | Custom ({self.issue_identifier})"
+        return f"{self.retest} | {self.statement_check} ({self.issue_identifier})"
 
     @property
     def label(self):
         return self.statement_check.label if self.statement_check else "Custom"
+
+    @property
+    def issue_identifier(self) -> str:
+        """Unique identifier to aid communication"""
+        return f"CASE-{self.retest.case.case_number}-B-{self.id_within_case}"
 
 
 class StatementPage(models.Model):
